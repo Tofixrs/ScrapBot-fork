@@ -27,165 +27,165 @@ public class Service : IHostedService
     };
 
 
-    private readonly ILogger<Service> _logger;
-    private readonly Options _options;
+    private readonly ILogger<Service> logger;
+    private readonly Options options;
 
-    private readonly SteamClient _steamClient;
-    private readonly SteamApps _steamApps;
-    private readonly SteamUser _steamUser;
-    private readonly SteamFriends _steamFriends;
-    private readonly CallbackManager _callbackManager;
+    private readonly SteamClient steamClient;
+    private readonly SteamApps steamApps;
+    private readonly SteamUser steamUser;
+    private readonly SteamFriends steamFriends;
+    private readonly CallbackManager callbackManager;
 
-    private readonly Timer _timer;
+    private readonly Timer timer;
 
-    private uint _lastChangeNumber;
+    private uint lastChangeNumber;
 
-    private bool _isAnon;
+    private bool isAnon;
 
-    private bool _isFirstConnection = true;
-    private bool _isStopping;
-    private int _reconnectAttempts;
+    private bool isFirstConnection = true;
+    private bool isStopping;
+    private int reconnectAttempts;
 
-    private readonly HttpClient _httpClient = new();
+    private readonly HttpClient httpClient = new();
 
     public Service(ILogger<Service> logger, IOptions<Options> options)
     {
-        _logger = logger;
-        _options = options.Value;
+        this.logger = logger;
+        this.options = options.Value;
 
-        _timer = new Timer(TimerCallback, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        timer = new Timer(TimerCallback, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
         CheckAnon();
 
-        _steamClient = new SteamClient();
-        _steamApps = _steamClient.GetHandler<SteamApps>()!;
-        _steamUser = _steamClient.GetHandler<SteamUser>()!;
-        _steamFriends = _steamClient.GetHandler<SteamFriends>()!;
+        steamClient = new SteamClient();
+        steamApps = steamClient.GetHandler<SteamApps>()!;
+        steamUser = steamClient.GetHandler<SteamUser>()!;
+        steamFriends = steamClient.GetHandler<SteamFriends>()!;
 
 #if STEAM_PACKET_VERBOSE
         _steamClient.AddHandler(new VerboseHandler());
 #endif
 
-        _callbackManager = new CallbackManager(_steamClient);
-        _callbackManager.Subscribe<SteamClient.ConnectedCallback>(OnClientConnected);
-        _callbackManager.Subscribe<SteamClient.DisconnectedCallback>(OnClientDisconnected);
-        _callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnUserLoggedOn);
-        _callbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnUserLoggedOff);
-        _callbackManager.Subscribe<SteamApps.PICSChangesCallback>(OnPICSChanges);
+        callbackManager = new CallbackManager(steamClient);
+        callbackManager.Subscribe<SteamClient.ConnectedCallback>(OnClientConnected);
+        callbackManager.Subscribe<SteamClient.DisconnectedCallback>(OnClientDisconnected);
+        callbackManager.Subscribe<SteamUser.LoggedOnCallback>(OnUserLoggedOn);
+        callbackManager.Subscribe<SteamUser.LoggedOffCallback>(OnUserLoggedOff);
+        callbackManager.Subscribe<SteamApps.PICSChangesCallback>(OnPICSChanges);
     }
 
     private void CheckAnon()
     {
-        _isAnon = _options.Username is null || _options.Password is null;
+        isAnon = options.Username is null || options.Password is null;
     }
 
     private void TimerCallback(object? _)
     {
-        _steamApps.PICSGetChangesSince(_lastChangeNumber, true, true);
+        steamApps.PICSGetChangesSince(lastChangeNumber, true, true);
     }
 
     public Task StartAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Starting");
+        logger.LogInformation("Starting");
 
         var callbackTask = new Task(() =>
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                _callbackManager.RunWaitCallbacks(TimeSpan.FromSeconds(5));
+                callbackManager.RunWaitCallbacks(TimeSpan.FromSeconds(5));
             }
         }, cancellationToken, TaskCreationOptions.LongRunning);
 
         callbackTask.Start();
 
-        _logger.LogInformation("Connecting");
+        logger.LogInformation("Connecting");
 
-        _steamClient.Connect();
+        steamClient.Connect();
 
-        _logger.LogInformation("Started");
+        logger.LogInformation("Started");
 
         return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
     {
-        _logger.LogInformation("Stopping");
+        logger.LogInformation("Stopping");
 
-        _isStopping = true;
+        isStopping = true;
 
-        _steamClient.Disconnect();
+        steamClient.Disconnect();
 
-        _logger.LogInformation("Stopped");
+        logger.LogInformation("Stopped");
 
         return Task.CompletedTask;
     }
 
     private void OnClientConnected(SteamClient.ConnectedCallback callback)
     {
-        _reconnectAttempts = 0;
-        _logger.LogInformation("Client {}", _isFirstConnection ? "Connected" : "Reconnected");
-        _isFirstConnection = false;
+        reconnectAttempts = 0;
+        logger.LogInformation("Client {}", isFirstConnection ? "Connected" : "Reconnected");
+        isFirstConnection = false;
 
         CheckAnon();
 
-        _logger.LogInformation("Logging On{}", _isAnon ? " Anonymously" : string.Empty);
+        logger.LogInformation("Logging On{}", isAnon ? " Anonymously" : string.Empty);
 
-        if (_isAnon)
+        if (isAnon)
         {
-            _steamUser.LogOnAnonymous();
+            steamUser.LogOnAnonymous();
         }
         else
         {
-            _steamUser.LogOn(new SteamUser.LogOnDetails
+            steamUser.LogOn(new SteamUser.LogOnDetails
             {
-                Username = _options.Username,
-                Password = _options.Password
+                Username = options.Username,
+                Password = options.Password
             });
         }
     }
 
     private async void OnClientDisconnected(SteamClient.DisconnectedCallback callback)
     {
-        _timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
-        _logger.LogInformation("Disconnected");
-        if (_isStopping) return;
-        var seconds = (int)Math.Min(Math.Pow(2, _reconnectAttempts) * 15, _options.MaxReconnectDelaySeconds);
-        var attempts = " (Attempt " + (_reconnectAttempts + 1) + ")";
-        _logger.LogInformation("Reconnecting in " + seconds + " Second" + (seconds == 1 ? "" : "s") + attempts);
+        timer.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        logger.LogInformation("Disconnected");
+        if (isStopping) return;
+        var seconds = (int)Math.Min(Math.Pow(2, reconnectAttempts) * 15, options.MaxReconnectDelaySeconds);
+        var attempts = " (Attempt " + (reconnectAttempts + 1) + ")";
+        logger.LogInformation("Reconnecting in " + seconds + " Second" + (seconds == 1 ? "" : "s") + attempts);
         await Task.Delay(TimeSpan.FromSeconds(seconds));
-        _logger.LogInformation("Reconnecting" + attempts);
-        _reconnectAttempts += 1;
-        _steamClient.Connect();
+        logger.LogInformation("Reconnecting" + attempts);
+        reconnectAttempts += 1;
+        steamClient.Connect();
     }
 
     private void OnUserLoggedOn(SteamUser.LoggedOnCallback callback)
     {
         if (callback.Result != EResult.OK)
         {
-            _logger.LogError($"Log On Failed: EResult.{callback.Result:G}({callback.Result:D})");
+            logger.LogError($"Log On Failed: EResult.{callback.Result:G}({callback.Result:D})");
             return;
         }
 
-        if (!_isAnon) _steamFriends.SetPersonaState(EPersonaState.Online);
-        _logger.LogInformation("Logged On{}", _isAnon ? " Anonymously" : string.Empty);
-        _timer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(_options.PICSRefreshDelaySeconds));
+        if (!isAnon) steamFriends.SetPersonaState(EPersonaState.Online);
+        logger.LogInformation("Logged On{}", isAnon ? " Anonymously" : string.Empty);
+        timer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(options.PICSRefreshDelaySeconds));
     }
 
     private void OnUserLoggedOff(SteamUser.LoggedOffCallback callback)
     {
-        _logger.LogInformation("Logged Off");
+        logger.LogInformation("Logged Off");
     }
 
     private async void OnPICSChanges(SteamApps.PICSChangesCallback callback)
     {
         if (callback.LastChangeNumber == callback.CurrentChangeNumber) return;
-        if (callback.CurrentChangeNumber > _lastChangeNumber) _lastChangeNumber = callback.CurrentChangeNumber;
+        if (callback.CurrentChangeNumber > lastChangeNumber) lastChangeNumber = callback.CurrentChangeNumber;
         var apps = callback.AppChanges.Where(app => Apps.ContainsKey(app.Value.ID)).ToArray();
         if (apps.Length <= 0) return;
         foreach (var (_, app) in apps)
         {
             Apps.TryGetValue(app.ID, out var appName);
-            foreach (var webhook in _options.Webhooks)
+            foreach (var webhook in options.Webhooks)
             {
                 switch (webhook.type)
                 {
@@ -200,7 +200,7 @@ public class Service : IHostedService
                                 Encoding.UTF8,
                                 "application/json"
                             );
-                            var res = await _httpClient.PostAsync(webhook.token, jsonContent);
+                            var res = await httpClient.PostAsync(webhook.token, jsonContent);
 
                             res.Dispose();
                             break;
@@ -233,40 +233,8 @@ public class Service : IHostedService
 
         }
 
-#if PICS_PRODUCT_INFO
-        var productInfo = await _steamApps.PICSGetProductInfo(callback.AppChanges.Select(app => 
-                                                                  new SteamApps.PICSRequest(app.Value.ID)), 
-                                                              callback.PackageChanges.Select(package =>
-                                                                  new SteamApps.PICSRequest(package.Value.ID)));
-        if (productInfo.Failed || productInfo.Results is null) return;
-        foreach (var result in productInfo.Results) {
-            foreach (var (_, app) in result.Apps) {
-                var pipe = new Pipe();
-                app.KeyValues.SaveToStream(pipe.Writer.AsStream(), false);
-            }
-
-            foreach (var (_, package) in result.Packages) {
-                
-            }
-        }
-#endif
     }
 
-#if PICS_PRODUCT_INFO
-    private SortedDictionary<string, string> FlattenKeyValue(KeyValue keyValue) {
-        return FlattenKeyValue(keyValue, new SortedDictionary<string, string>());
-    }
-
-    private SortedDictionary<string, string> FlattenKeyValue(KeyValue keyValue, SortedDictionary<string, string> current, string parentPath = "") {
-        if(keyValue.Value is not null) current.Add($"{parentPath}{keyValue.Name ?? ""}", keyValue.Value);
-        
-        foreach (var child in keyValue.Children) {
-            FlattenKeyValue(child, current, $"{parentPath}{keyValue.Name ?? ""}/");
-        }
-
-        return current;
-    }
-#endif
 }
 
 #if STEAM_PACKET_VERBOSE
