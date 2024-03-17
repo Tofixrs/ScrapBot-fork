@@ -14,18 +14,18 @@ public static class KeyValueExtensions
     }
     public static string PrintString(this KeyValue keyValue)
     {
-        var s = "";
+        var returnString = "";
         if (keyValue.Value == null)
         {
-            var ss = string.Join(",\n", keyValue.Children.ConvertAll(kv => $"\t{PrintString(kv)}"));
-            s = $"\"{keyValue.Name}\": {{ \n{ss} \n}}";
+            var children = string.Join(",\n", keyValue.Children.ConvertAll(kv => $"\t{PrintString(kv)}"));
+            returnString = $"\"{keyValue.Name}\": {{ \n{children} \n}}";
         }
         else
         {
-            s = $"\"{keyValue.Name}\" : \"{keyValue.Value}\"";
+            returnString = $"\"{keyValue.Name}\" : \"{keyValue.Value}\"";
         }
 
-        return s;
+        return returnString;
     }
     public static KeyValue? CustomIndex(KeyValue kv, string index)
     {
@@ -34,12 +34,12 @@ public static class KeyValueExtensions
         if (indexes.Length == 0) return kv;
 
         var i = indexes[0];
-        var k = kv.Children.Where(kv => kv.Name == i);
+        var foundChildren = kv.Children.Where(kv => kv.Name == i);
 
-        if (k.ToArray().Length == 0) return null;
-        var kk = k.ToArray()[0];
+        if (foundChildren.ToArray().Length == 0) return null;
+        var firstFoundChild = foundChildren.ToArray()[0];
 
-        return CustomIndex(kk, string.Join("/", index.Split("/").Skip(1)));
+        return CustomIndex(firstFoundChild, string.Join("/", index.Split("/").Skip(1)));
     }
 }
 

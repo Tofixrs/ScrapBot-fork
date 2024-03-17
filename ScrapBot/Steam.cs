@@ -7,6 +7,7 @@ using SteamKit2;
 using RevoltSharp;
 using System.Text.Json;
 using System.Text;
+using static SteamKit2.SteamApps;
 
 namespace ScrapBot.Steam;
 
@@ -235,6 +236,16 @@ public class Service : IHostedService
 
     }
 
+
+    private async Task<string[]?> fetchStoreTags(uint appid)
+    {
+        var req = await steamApps.PICSGetProductInfo(new PICSRequest(appid), new PICSRequest());
+        if (req.Failed || req.Results is null) return null;
+
+        var result = req.Results[0].Apps.Values.ToArray()[0];
+
+        return KeyValueExtensions.GetStoreTagsIfExists(result.KeyValues);
+    }
 }
 
 #if STEAM_PACKET_VERBOSE
