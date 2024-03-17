@@ -243,6 +243,7 @@ public class Service : IHostedService
         if (req.Failed || req.Results is null) return null;
 
         var result = req.Results[0].Apps.Values.ToArray()[0];
+        if (result is null) return null;
 
         return KeyValueExtensions.GetStoreTagsIfExists(result.KeyValues);
     }
