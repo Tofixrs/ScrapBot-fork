@@ -205,8 +205,9 @@ public class Service : IHostedService
 
             if (tagsCurrent is not null)
             {
-                var tagsOld = storeTags[id];
+                if (!storeTags.ContainsKey(id)) continue;
 
+                var tagsOld = storeTags[id];
                 if (!tagsCurrent.All(tagsOld.Contains) || tagsCurrent.Length != tagsOld.ToArray().Length)
                 {
                     continue;
