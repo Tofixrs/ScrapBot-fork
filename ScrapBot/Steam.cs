@@ -20,6 +20,7 @@ public class Options
     public required List<Webhook> Webhooks { get; set; }
 }
 
+
 public class Service : IHostedService
 {
     private Dictionary<uint, string> Apps = new() {
@@ -46,6 +47,11 @@ public class Service : IHostedService
     private bool isFirstConnection = true;
     private bool isStopping;
     private int reconnectAttempts;
+
+    private Dictionary<uint, List<string>> storeTags = new() {
+        {387990, []},
+        {588870, []}
+    };
 
     private readonly HttpClient httpClient = new();
 
@@ -159,7 +165,7 @@ public class Service : IHostedService
         steamClient.Connect();
     }
 
-    private void OnUserLoggedOn(SteamUser.LoggedOnCallback callback)
+    private async void OnUserLoggedOn(SteamUser.LoggedOnCallback callback)
     {
         if (callback.Result != EResult.OK)
         {
@@ -170,6 +176,16 @@ public class Service : IHostedService
         if (!isAnon) steamFriends.SetPersonaState(EPersonaState.Online);
         logger.LogInformation("Logged On{}", isAnon ? " Anonymously" : string.Empty);
         timer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(options.PICSRefreshDelaySeconds));
+
+
+        foreach (var (id, _) in Apps)
+        {
+            var storeTagsFetch = await fetchStoreTags(id);
+            if (storeTagsFetch is not null)
+            {
+                storeTags[id] = (storeTagsFetch).ToList();
+            }
+        }
     }
 
     private void OnUserLoggedOff(SteamUser.LoggedOffCallback callback)
@@ -183,8 +199,19 @@ public class Service : IHostedService
         if (callback.CurrentChangeNumber > lastChangeNumber) lastChangeNumber = callback.CurrentChangeNumber;
         var apps = callback.AppChanges.Where(app => Apps.ContainsKey(app.Value.ID)).ToArray();
         if (apps.Length <= 0) return;
-        foreach (var (_, app) in apps)
+        foreach (var (id, app) in apps)
         {
+            var tagsCurrent = await fetchStoreTags(id);
+
+            if (tagsCurrent is not null)
+            {
+                var tagsOld = storeTags[id];
+
+                if (!tagsCurrent.All(tagsOld.Contains) || tagsCurrent.Length != tagsOld.ToArray().Length)
+                {
+                    continue;
+                }
+            }
             Apps.TryGetValue(app.ID, out var appName);
             foreach (var webhook in options.Webhooks)
             {

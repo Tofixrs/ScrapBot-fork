@@ -6,11 +6,10 @@ public static class KeyValueExtensions
 {
     public static string[]? GetStoreTagsIfExists(this KeyValue keyValue)
     {
-        var store_tags = CustomIndex(keyValue, "common/store_tags");
+        var store_tags = keyValue.CustomIndex("common/store_tags");
+        if (store_tags is null) return null;
 
-        if (store_tags == null) return null;
-
-        return store_tags.Children.ConvertAll(kv => kv.Value).ToArray();
+        return store_tags.Children.ConvertAll(kv => kv.Value is null ? "" : kv.Value).ToArray();
     }
     public static string PrintString(this KeyValue keyValue)
     {
@@ -27,19 +26,19 @@ public static class KeyValueExtensions
 
         return returnString;
     }
-    public static KeyValue? CustomIndex(KeyValue kv, string index)
+    public static KeyValue? CustomIndex(this KeyValue kv, string index)
     {
+        if (index == "") return kv;
+
         var indexes = index.Split("/");
-
-        if (indexes.Length == 0) return kv;
-
         var i = indexes[0];
-        var foundChildren = kv.Children.Where(kv => kv.Name == i);
 
+        var foundChildren = kv.Children.Where(kv => kv.Name == i);
         if (foundChildren.ToArray().Length == 0) return null;
         var firstFoundChild = foundChildren.ToArray()[0];
 
-        return CustomIndex(firstFoundChild, string.Join("/", index.Split("/").Skip(1)));
+        string nextIndex = string.Join("/", index.Split("/").Skip(1));
+        return CustomIndex(firstFoundChild, nextIndex);
     }
 }
 
