@@ -49,8 +49,8 @@ public class Service : IHostedService
     private int reconnectAttempts;
 
     private Dictionary<uint, List<string>> storeTags = new() {
-        {387990, []},
-        {588870, []}
+        {387990, new List<string>()},
+        {588870, new List<string>()}
     };
 
     private readonly HttpClient httpClient = new();
