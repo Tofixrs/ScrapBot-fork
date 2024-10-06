@@ -210,6 +210,7 @@ public class Service : IHostedService
                 var tagsOld = storeTags[id];
                 if (!tagsCurrent.All(tagsOld.Contains) || tagsCurrent.Length != tagsOld.ToArray().Length)
                 {
+                    storeTags[id] = tagsCurrent.ToList();
                     continue;
                 }
             }
